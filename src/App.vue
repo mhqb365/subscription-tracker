@@ -1,13 +1,28 @@
 <script setup>
 import { ref, computed, watch, onMounted } from "vue";
-import SubscriptionDetail from "./components/SubscriptionDetail.vue";
-import Dashboard from "./components/Dashboard.vue";
-import Subscriptions from "./components/Subscriptions.vue";
-import Statistics from "./components/Statistics.vue";
-import Settings from "./components/Settings.vue";
+import { useRouter, useRoute } from "vue-router";
 import ConfirmModal from "./components/ConfirmModal.vue";
 import { initGoogleServices, autoSync } from "./services/googleDrive";
 import { iconPaths } from "./icons";
+
+const router = useRouter();
+const route = useRoute();
+const lastRoute = ref("dashboard");
+const isRouteLoading = ref(false);
+
+// Handle top loading bar on navigation
+router.beforeEach((to, from, next) => {
+  if (to.name !== from.name) {
+    isRouteLoading.value = true;
+  }
+  next();
+});
+
+router.afterEach(() => {
+  setTimeout(() => {
+    isRouteLoading.value = false;
+  }, 450);
+});
 
 const navItems = [
   { label: "Dashboard", icon: "grid", id: "dashboard" },
@@ -65,8 +80,6 @@ const categories = [
 ];
 
 // State
-const currentView = ref("dashboard");
-const lastView = ref("dashboard");
 const selectedSub = ref(null);
 const isDark = ref(true);
 
@@ -215,6 +228,16 @@ watch(
   { deep: true },
 );
 
+// Track last route for "cancel/back" actions
+watch(
+  () => route.name,
+  (newVal, oldVal) => {
+    if (oldVal && oldVal !== "detail") {
+      lastRoute.value = oldVal;
+    }
+  },
+);
+
 // Computeds
 const totalSpending = computed(() => {
   let total = 0;
@@ -312,9 +335,12 @@ function isExpiringSoon(sub) {
 
 // Actions
 function openDetail(sub = null) {
-  lastView.value = currentView.value;
   selectedSub.value = sub;
-  currentView.value = "detail";
+  if (sub) {
+    router.push({ name: "detail", params: { id: sub.id } });
+  } else {
+    router.push({ name: "detail" });
+  }
 }
 
 function handleSave(subData) {
@@ -331,8 +357,7 @@ function handleSave(subData) {
     };
     subscriptions.value.push(newSub);
   }
-  // Go back to the 'Subscriptions' view if that's where we came from, or stay there
-  currentView.value = lastView.value;
+  router.push({ name: lastRoute.value });
 }
 
 function handleDelete(id) {
@@ -344,8 +369,8 @@ function handleDelete(id) {
     isDanger: true,
     onConfirm: () => {
       subscriptions.value = subscriptions.value.filter((s) => s.id !== id);
-      if (currentView.value === "detail") {
-        currentView.value = lastView.value;
+      if (route.name === "detail") {
+        router.push({ name: lastRoute.value });
       }
     },
   });
@@ -365,7 +390,8 @@ function handleImport(data) {
 }
 
 function handleNav(item) {
-  currentView.value = item.id;
+  lastRoute.value = route.name;
+  router.push({ name: item.id });
 }
 
 function getRandomGradient() {
@@ -382,23 +408,19 @@ function getRandomGradient() {
 
 <template>
   <div class="app-shell">
+    <div class="loading-bar" :class="{ loading: isRouteLoading }"></div>
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-knot"></div>
         <span>ST</span>
       </div>
       <nav class="nav">
-        <button
+        <router-link
           v-for="item in navItems"
           :key="item.id"
+          :to="{ name: item.id }"
           class="nav-link"
-          :class="{
-            active:
-              currentView === item.id ||
-              (currentView === 'detail' && lastView === item.id),
-          }"
-          type="button"
-          @click="handleNav(item)"
+          active-class="active"
         >
           <div class="nav-icon">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -406,53 +428,33 @@ function getRandomGradient() {
             </svg>
           </div>
           <span>{{ item.label }}</span>
-        </button>
+        </router-link>
       </nav>
     </aside>
 
     <main class="main">
-      <Dashboard
-        v-if="currentView === 'dashboard'"
-        :stats="stats"
-        :subscriptions="subscriptions"
-        @view-all="currentView = 'subscriptions'"
-        @add="openDetail(null)"
-        @edit="openDetail"
-        @delete="handleDelete"
-      />
-
-      <Subscriptions
-        v-else-if="currentView === 'subscriptions'"
-        :subscriptions="subscriptions"
-        :categories="categories"
-        @add="openDetail(null)"
-        @edit="openDetail"
-        @delete="handleDelete"
-        @import="handleImport"
-      />
-
-      <Settings
-        v-else-if="currentView === 'settings'"
-        :subscriptions="subscriptions"
-        :is-dark="isDark"
-        :show-confirm="showConfirm"
-        @import="handleImport"
-        @toggle-theme="toggleTheme"
-      />
-
-      <Statistics
-        v-else-if="currentView === 'statistics'"
-        :subscriptions="subscriptions"
-      />
-
-      <SubscriptionDetail
-        v-if="currentView === 'detail'"
-        :subscription="selectedSub"
-        :categories="categories"
-        @save="handleSave"
-        @cancel="currentView = lastView"
-        @delete="handleDelete"
-      />
+      <router-view v-slot="{ Component }">
+        <transition name="fade">
+          <component
+            :is="Component"
+            class="view-container"
+            :subscriptions="subscriptions"
+            :stats="stats"
+            :categories="categories"
+            :is-dark="isDark"
+            :show-confirm="showConfirm"
+            :subscription="selectedSub"
+            @view-all="router.push({ name: 'subscriptions' })"
+            @add="openDetail"
+            @edit="openDetail"
+            @delete="handleDelete"
+            @import="handleImport"
+            @toggle-theme="toggleTheme"
+            @save="handleSave"
+            @cancel="() => router.push({ name: lastRoute })"
+          />
+        </transition>
+      </router-view>
     </main>
 
     <ConfirmModal
@@ -474,6 +476,31 @@ function getRandomGradient() {
   display: flex;
   min-height: 100vh;
   color: var(--text);
+  position: relative;
+}
+
+/* Route Loading Bar */
+.loading-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 1.5px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  background: var(--primary-gradient);
+  z-index: 9999;
+  width: 0;
+  opacity: 0;
+  transition:
+    width 0.4s cubic-bezier(0.1, 0.7, 0.1, 1),
+    opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.loading-bar.loading {
+  width: 100%;
+  opacity: 1;
 }
 
 .sidebar {
@@ -590,6 +617,10 @@ function getRandomGradient() {
   background:
     radial-gradient(70% 50% at 70% 80%, rgba(99, 102, 241, 0.15), transparent),
     radial-gradient(40% 40% at 30% 10%, rgba(244, 114, 182, 0.1), transparent);
+}
+
+.view-container {
+  width: 100%;
 }
 [data-theme="light"] .sidebar {
   background: #ffffff;

@@ -78,14 +78,6 @@ function initializeGisClient() {
     },
   });
   gisInited = true;
-
-  // Try silent login on init if user was previously logged in
-  if (
-    !isAuthenticated.value &&
-    localStorage.getItem("google_logged_in") === "true"
-  ) {
-    tokenClient.requestAccessToken({ prompt: "" });
-  }
 }
 
 function checkAuth() {

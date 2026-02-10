@@ -3,9 +3,17 @@ import { reactive, onMounted, computed } from "vue";
 import { iconPaths } from "../icons";
 
 const props = defineProps({
+  id: {
+    type: [String, Number],
+    default: null,
+  },
   subscription: {
     type: Object,
     default: null,
+  },
+  subscriptions: {
+    type: Array,
+    default: () => [],
   },
   categories: {
     type: Array,
@@ -33,11 +41,20 @@ const formData = reactive({
   accent: null,
 });
 
-const isEditing = computed(() => !!props.subscription);
+const isEditing = computed(() => !!props.subscription || !!props.id);
 
 onMounted(() => {
-  if (props.subscription) {
-    Object.assign(formData, JSON.parse(JSON.stringify(props.subscription)));
+  let subToLoad = props.subscription;
+
+  // If no direct subscription object, try to find by ID in the list
+  if (!subToLoad && props.id && props.subscriptions.length > 0) {
+    subToLoad = props.subscriptions.find(
+      (s) => String(s.id) === String(props.id),
+    );
+  }
+
+  if (subToLoad) {
+    Object.assign(formData, JSON.parse(JSON.stringify(subToLoad)));
     if (formData.expiry?.includes("T"))
       formData.expiry = formData.expiry.split("T")[0];
     if (formData.startDate?.includes("T"))
