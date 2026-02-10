@@ -162,22 +162,22 @@ function formatDate(dateStr) {
   <div class="subscriptions-page fade-in">
     <header class="page-header">
       <div class="header-content">
-        <!-- <p class="eyebrow">QUẢN LÝ</p> -->
-        <h1>Quản lý đăng ký</h1>
-        <!-- <p class="subtitle">Quản lý tất cả gói đăng ký của bạn ở một nơi</p> -->
+        <!-- <p class="eyebrow">MANAGEMENT</p> -->
+        <h1>Subscriptions</h1>
+        <!-- <p class="subtitle">Manage all your subscriptions in one place</p> -->
       </div>
       <div class="header-actions">
         <button class="pill-btn secondary" @click="handleImportClick">
           <svg viewBox="0 0 24 24"><path :d="iconPaths.upload" /></svg>
-          Nhập
+          Import
         </button>
         <button class="pill-btn secondary" @click="exportData">
           <svg viewBox="0 0 24 24"><path :d="iconPaths.download" /></svg>
-          Xuất
+          Export
         </button>
         <button class="pill-btn primary" @click="$emit('add')">
           <svg viewBox="0 0 24 24"><path :d="iconPaths.plus" /></svg>
-          Thêm gói đăng ký
+          Add Subscription
         </button>
       </div>
     </header>

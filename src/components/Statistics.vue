@@ -9,56 +9,62 @@ const props = defineProps({
   },
 });
 
-// Calculate total spending by period
+// Calculate total spending by period (Logic mới - chính xác theo từng bill)
 const calculateTotalByPeriod = (period) => {
   const now = new Date();
-  let startDate;
+  let rangeStart, rangeEnd;
 
   switch (period) {
     case "month":
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      rangeStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      rangeEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
       break;
     case "quarter":
       const quarter = Math.floor(now.getMonth() / 3);
-      startDate = new Date(now.getFullYear(), quarter * 3, 1);
+      rangeStart = new Date(now.getFullYear(), quarter * 3, 1);
+      rangeEnd = new Date(now.getFullYear(), quarter * 3 + 3, 0, 23, 59, 59);
       break;
     case "year":
-      startDate = new Date(now.getFullYear(), 0, 1);
+      rangeStart = new Date(now.getFullYear(), 0, 1);
+      rangeEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
       break;
     case "all":
-      startDate = new Date(0); // Beginning of time
+      rangeStart = new Date(0);
+      rangeEnd = now;
       break;
   }
 
   let total = 0;
+
   props.subscriptions.forEach((sub) => {
     if (sub.status !== "ACTIVE") return;
-
-    const subStart = new Date(sub.startDate);
-    if (subStart > now) return; // Future subscriptions
 
     let amount = sub.price;
     if (sub.currency === "USD") {
       amount = sub.price * 25400;
     }
 
-    // Calculate how many billing cycles occurred since start
-    const cycleMonths = {
-      "Gói tháng": 1,
-      "Gói Quý": 3,
-      "Gói 6 tháng": 6,
-      "Gói Năm": 12,
-    };
+    let currentBillDate = new Date(sub.startDate);
+    currentBillDate.setHours(0, 0, 0, 0);
+    const pStart = new Date(rangeStart);
+    pStart.setHours(0, 0, 0, 0);
+    const pEnd = new Date(rangeEnd);
+    pEnd.setHours(23, 59, 59, 999);
 
-    const monthsPerCycle = cycleMonths[sub.cycle] || 1;
-    const cycleInMs = monthsPerCycle * 30 * 24 * 60 * 60 * 1000; // Approximate
-
-    let periodStart = Math.max(startDate.getTime(), subStart.getTime());
-    let periodEnd = now.getTime();
-
-    // Count cycles in period
-    let cycles = Math.floor((periodEnd - periodStart) / cycleInMs);
-    total += amount * cycles;
+    while (currentBillDate <= pEnd) {
+      if (currentBillDate >= pStart) {
+        total += amount;
+      }
+      if (sub.cycle === "Gói tháng")
+        currentBillDate.setMonth(currentBillDate.getMonth() + 1);
+      else if (sub.cycle === "Gói Quý")
+        currentBillDate.setMonth(currentBillDate.getMonth() + 3);
+      else if (sub.cycle === "Gói 6 tháng")
+        currentBillDate.setMonth(currentBillDate.getMonth() + 6);
+      else if (sub.cycle === "Gói Năm")
+        currentBillDate.setFullYear(currentBillDate.getFullYear() + 1);
+      else currentBillDate.setMonth(currentBillDate.getMonth() + 1);
+    }
   });
 
   return total;
@@ -66,25 +72,25 @@ const calculateTotalByPeriod = (period) => {
 
 const stats = computed(() => [
   {
-    label: "Tháng này",
+    label: "This Month",
     value: calculateTotalByPeriod("month"),
     icon: "calendar",
     color: "#6366f1",
   },
   {
-    label: "Quý này",
+    label: "This Quarter",
     value: calculateTotalByPeriod("quarter"),
     icon: "chart",
     color: "#8b5cf6",
   },
   {
-    label: "Năm nay",
+    label: "This Year",
     value: calculateTotalByPeriod("year"),
     icon: "trending",
     color: "#ec4899",
   },
   {
-    label: "Tổng cộng",
+    label: "Total",
     value: calculateTotalByPeriod("all"),
     icon: "dollar",
     color: "#10b981",
@@ -112,7 +118,6 @@ const spendingByCategory = computed(() => {
       monthlyAmount = sub.price * 25400;
     }
 
-    // Normalize to monthly
     if (sub.cycle === "Gói Quý") monthlyAmount = monthlyAmount / 3;
     if (sub.cycle === "Gói 6 tháng") monthlyAmount = monthlyAmount / 6;
     if (sub.cycle === "Gói Năm") monthlyAmount = monthlyAmount / 12;
@@ -134,8 +139,6 @@ const topExpensive = computed(() => {
       if (sub.currency === "USD") {
         monthlyAmount = sub.price * 25400;
       }
-
-      // Normalize to monthly
       if (sub.cycle === "Gói Quý") monthlyAmount = monthlyAmount / 3;
       if (sub.cycle === "Gói 6 tháng") monthlyAmount = monthlyAmount / 6;
       if (sub.cycle === "Gói Năm") monthlyAmount = monthlyAmount / 12;
@@ -144,6 +147,47 @@ const topExpensive = computed(() => {
     })
     .sort((a, b) => b.monthlyAmount - a.monthlyAmount)
     .slice(0, 5);
+});
+
+// Calculate total paid for each subscription since start
+const totalPaidPerSubscription = computed(() => {
+  const now = new Date();
+
+  return [...props.subscriptions]
+    .map((sub) => {
+      const subStart = new Date(sub.startDate);
+      if (subStart > now) {
+        return { ...sub, totalPaid: 0, cycleCount: 0 };
+      }
+
+      let amount = sub.price;
+      if (sub.currency === "USD") {
+        amount = sub.price * 25400;
+      }
+
+      const cycleMonths = {
+        "Gói tháng": 1,
+        "Gói Quý": 3,
+        "Gói 6 tháng": 6,
+        "Gói Năm": 12,
+      };
+
+      const monthsPerCycle = cycleMonths[sub.cycle] || 1;
+      const daysSinceStart = Math.floor(
+        (now - subStart) / (1000 * 60 * 60 * 24),
+      );
+      const cycleCount = Math.floor(daysSinceStart / (monthsPerCycle * 30));
+      const totalPaid = amount * cycleCount;
+
+      return {
+        ...sub,
+        totalPaid,
+        cycleCount,
+        daysSinceStart,
+      };
+    })
+    .filter((sub) => sub.totalPaid > 0)
+    .sort((a, b) => b.totalPaid - a.totalPaid);
 });
 
 function formatCurrency(amount) {
@@ -167,61 +211,14 @@ function getCategoryColor(category) {
   };
   return colors[category] || "#6b7280";
 }
-
-// Calculate total paid for each subscription since start
-const totalPaidPerSubscription = computed(() => {
-  const now = new Date();
-
-  return [...props.subscriptions]
-    .map((sub) => {
-      const subStart = new Date(sub.startDate);
-
-      // If subscription hasn't started yet
-      if (subStart > now) {
-        return { ...sub, totalPaid: 0, cycleCount: 0 };
-      }
-
-      let amount = sub.price;
-      if (sub.currency === "USD") {
-        amount = sub.price * 25400;
-      }
-
-      // Calculate billing cycles
-      const cycleMonths = {
-        "Gói tháng": 1,
-        "Gói Quý": 3,
-        "Gói 6 tháng": 6,
-        "Gói Năm": 12,
-      };
-
-      const monthsPerCycle = cycleMonths[sub.cycle] || 1;
-
-      // Calculate number of complete cycles
-      const daysSinceStart = Math.floor(
-        (now - subStart) / (1000 * 60 * 60 * 24),
-      );
-      const cycleCount = Math.floor(daysSinceStart / (monthsPerCycle * 30));
-
-      const totalPaid = amount * cycleCount;
-
-      return {
-        ...sub,
-        totalPaid,
-        cycleCount,
-        daysSinceStart,
-      };
-    })
-    .filter((sub) => sub.totalPaid > 0) // Only show subscriptions with payments
-    .sort((a, b) => b.totalPaid - a.totalPaid); // Sort by total paid descending
-});
 </script>
 
 <template>
   <div class="statistics-page fade-in">
     <header class="page-header">
       <div>
-        <!-- <p class="eyebrow">PHÂN TÍCH</p> -->
-        <h1>Thống kê chi tiêu</h1>
+        <!-- <p class="eyebrow">ANALYTICS</p> -->
+        <h1>Spending Statistics</h1>
       </div>
     </header>
 
@@ -247,7 +244,7 @@ const totalPaidPerSubscription = computed(() => {
 
     <!-- Category Breakdown -->
     <section class="section">
-      <h2 class="section-title">Chi tiêu theo danh mục</h2>
+      <h2 class="section-title">Spend by Category</h2>
       <div class="category-list">
         <article
           v-for="cat in spendingByCategory"
@@ -262,11 +259,11 @@ const totalPaidPerSubscription = computed(() => {
               ></div>
               <div>
                 <div class="category-name">{{ cat.category }}</div>
-                <div class="category-count">{{ cat.count }} dịch vụ</div>
+                <div class="category-count">{{ cat.count }} services</div>
               </div>
             </div>
             <div class="category-amount">
-              {{ formatCurrency(cat.total) }}/tháng
+              {{ formatCurrency(cat.total) }}/mo
             </div>
           </div>
           <div class="category-subs">
@@ -284,7 +281,7 @@ const totalPaidPerSubscription = computed(() => {
 
     <!-- Top Expensive -->
     <section class="section">
-      <h2 class="section-title">Top 5 gói đắt nhất</h2>
+      <h2 class="section-title">Top 5 Most Expensive</h2>
       <div class="top-list">
         <article
           v-for="(sub, idx) in topExpensive"
@@ -308,7 +305,7 @@ const totalPaidPerSubscription = computed(() => {
           </div>
           <div class="top-amount">
             {{ formatCurrency(sub.monthlyAmount) }}
-            <span class="period">/tháng</span>
+            <span class="period">/mo</span>
           </div>
         </article>
       </div>
@@ -316,7 +313,7 @@ const totalPaidPerSubscription = computed(() => {
 
     <!-- Total Paid Per Subscription -->
     <section class="section">
-      <h2 class="section-title">Tổng tiền đã trả cho từng gói</h2>
+      <h2 class="section-title">Total Paid per Subscription</h2>
       <div class="paid-list">
         <article
           v-for="sub in totalPaidPerSubscription"
@@ -338,16 +335,14 @@ const totalPaidPerSubscription = computed(() => {
             <div class="paid-details">
               <span class="paid-cycle">{{ sub.cycle }}</span>
               <span class="paid-separator">•</span>
-              <span class="paid-count"
-                >{{ sub.cycleCount }} lần thanh toán</span
-              >
+              <span class="paid-count">{{ sub.cycleCount }} payments</span>
               <span class="paid-separator">•</span>
-              <span class="paid-days">{{ sub.daysSinceStart }} ngày</span>
+              <span class="paid-days">{{ sub.daysSinceStart }} days</span>
             </div>
           </div>
           <div class="paid-amount">
             <div class="paid-total">{{ formatCurrency(sub.totalPaid) }}</div>
-            <div class="paid-label">Tổng đã trả</div>
+            <div class="paid-label">Total Paid</div>
           </div>
         </article>
       </div>

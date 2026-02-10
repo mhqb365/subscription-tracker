@@ -67,11 +67,11 @@ function getDaysLeft(sub) {
     <header class="page-header">
       <div>
         <!-- <p class="eyebrow">TỔNG QUAN</p> -->
-        <h1>Bảng điều khiển</h1>
+        <h1>Dashboard</h1>
       </div>
       <button class="pill-btn primary" @click="$emit('add')">
         <svg viewBox="0 0 24 24"><path :d="iconPaths.plus" /></svg>
-        Thêm gói đăng ký
+        Add Subscription
       </button>
     </header>
 
@@ -97,9 +97,9 @@ function getDaysLeft(sub) {
     <section class="section">
       <div class="section-head">
         <h2 class="section-title" style="margin-bottom: 0">
-          Gói đăng ký gần đây
+          Recent Subscriptions
         </h2>
-        <button class="btn-text" @click="$emit('view-all')">Xem tất cả</button>
+        <button class="btn-text" @click="$emit('view-all')">View All</button>
       </div>
 
       <div class="subscription-list">
@@ -127,7 +127,7 @@ function getDaysLeft(sub) {
                   v-if="getDaysLeft(sub) <= 7 && sub.status === 'ACTIVE'"
                   class="expiry-label"
                 >
-                  Sắp hết hạn
+                  Expiring Soon
                 </span>
               </div>
               <div class="mini-cat">{{ sub.category }}</div>
