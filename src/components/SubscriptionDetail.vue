@@ -26,7 +26,7 @@ const formData = reactive({
   status: "ACTIVE",
   icon: "layers",
   category: "other",
-  cycle: "Gói tháng",
+  cycle: "Monthly",
   note: "",
   autoRenew: true,
   familyPlan: false,
@@ -85,36 +85,6 @@ function save() {
   emit("save", { ...formData });
 }
 
-async function speakDetails() {
-  const text = `Gói đăng ký ${formData.name}. Số tiền ${formData.price} ${formData.currency}. Chu kỳ ${formData.cycle}. Ghi chú: ${formData.note || "Không có"}.`;
-
-  try {
-    const response = await fetch("https://cloudtts.com/api/get_audio", {
-      headers: {
-        accept: "*/*",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        rate: 1,
-        volume: 1,
-        text: text,
-        voice: "vi-VN-HoaiMyNeural",
-        with_speechmarks: false,
-        recording: false,
-      }),
-      method: "POST",
-    });
-
-    const data = await response.json();
-    if (data.audio_url) {
-      const audio = new Audio(data.audio_url);
-      audio.play();
-    }
-  } catch (err) {
-    console.error("TTS Error:", err);
-  }
-}
-
 // Generate history based on startDate and cycle
 const calculatedHistory = computed(() => {
   if (!formData.startDate || !formData.price || formData.status !== "ACTIVE")
@@ -147,14 +117,14 @@ const calculatedHistory = computed(() => {
     hist.push({
       date: current.toISOString().split("T")[0],
       amount: format.format(formData.price),
-      status: "Đã thanh toán",
+      status: "Paid",
     });
 
-    if (formData.cycle === "Gói tháng") {
+    if (formData.cycle === "Monthly") {
       current.setMonth(current.getMonth() + 1);
-    } else if (formData.cycle === "Gói Quý") {
+    } else if (formData.cycle === "Quarterly") {
       current.setMonth(current.getMonth() + 3);
-    } else if (formData.cycle === "Gói 6 tháng") {
+    } else if (formData.cycle === "Semi-Annually") {
       current.setMonth(current.getMonth() + 6);
     } else {
       current.setFullYear(current.getFullYear() + 1);
@@ -174,17 +144,12 @@ const calculatedHistory = computed(() => {
     <div class="modal-content">
       <header class="modal-header">
         <div class="header-title">
-          <h3>{{ isEditing ? "Chi tiết gói" : "Thêm gói mới" }}</h3>
+          <h3>
+            {{ isEditing ? "Subscription Detail" : "Add New Subscription" }}
+          </h3>
           <p class="eyebrow" v-if="isEditing">{{ formData.name }}</p>
         </div>
         <div class="header-actions">
-          <button
-            class="icon-btn tts-btn"
-            @click="speakDetails"
-            title="Nghe thông tin"
-          >
-            <svg viewBox="0 0 24 24"><path :d="iconPaths.volume" /></svg>
-          </button>
           <button
             class="icon-btn danger"
             v-if="isEditing"
@@ -208,16 +173,16 @@ const calculatedHistory = computed(() => {
         <div class="card form-card">
           <form @submit.prevent="save">
             <div class="form-section">
-              <h3 class="section-title">Thông tin cơ bản</h3>
+              <h3 class="section-title">Basic Information</h3>
 
               <div class="form-group">
-                <label>Tên ứng dụng</label>
+                <label>Service Name</label>
                 <div class="input-with-icon">
                   <input
                     v-model="formData.name"
                     type="text"
                     required
-                    placeholder="VD: Netflix..."
+                    placeholder="e.g. Netflix, Spotify..."
                   />
                   <svg viewBox="0 0 24 24"><path :d="iconPaths.edit" /></svg>
                 </div>
@@ -225,7 +190,7 @@ const calculatedHistory = computed(() => {
 
               <div class="form-row pricing">
                 <div class="form-group grow">
-                  <label>Giá tiền</label>
+                  <label>Price</label>
                   <input
                     v-model.number="formData.price"
                     type="number"
@@ -234,33 +199,33 @@ const calculatedHistory = computed(() => {
                   />
                 </div>
                 <div class="form-group">
-                  <label>Tiền tệ</label>
+                  <label>Currency</label>
                   <select v-model="formData.currency">
                     <option value="VND">₫ VND</option>
                     <option value="USD">$ USD</option>
                   </select>
                 </div>
                 <div class="form-group">
-                  <label>Chu kỳ</label>
+                  <label>Billing Cycle</label>
                   <select v-model="formData.cycle">
-                    <option value="Gói tháng">Gói tháng</option>
-                    <option value="Gói Quý">Gói Quý</option>
-                    <option value="Gói 6 tháng">Gói 6 tháng</option>
-                    <option value="Gói Năm">Gói Năm</option>
+                    <option value="Monthly">Monthly</option>
+                    <option value="Quarterly">Quarterly</option>
+                    <option value="Semi-Annually">Semi-Annually</option>
+                    <option value="Annually">Annually</option>
                   </select>
                 </div>
               </div>
             </div>
 
             <div class="form-section">
-              <label>Thời hạn</label>
+              <label>Billing Period</label>
               <div class="form-row dates">
                 <div class="form-group">
-                  <label>Bắt đầu</label>
+                  <label>Start</label>
                   <input v-model="formData.startDate" type="date" required />
                 </div>
                 <div class="form-group">
-                  <label>Kết thúc</label>
+                  <label>Expiry</label>
                   <input v-model="formData.expiry" type="date" required />
                 </div>
               </div>
@@ -270,34 +235,34 @@ const calculatedHistory = computed(() => {
                   class="duration-btn"
                   @click="applyCycleDuration('month')"
                 >
-                  1 tháng
+                  1 Month
                 </button>
                 <button
                   type="button"
                   class="duration-btn"
                   @click="applyCycleDuration('quarter')"
                 >
-                  3 tháng
+                  3 Months
                 </button>
                 <button
                   type="button"
                   class="duration-btn"
                   @click="applyCycleDuration('halfyear')"
                 >
-                  6 tháng
+                  6 Months
                 </button>
                 <button
                   type="button"
                   class="duration-btn"
                   @click="applyCycleDuration('year')"
                 >
-                  1 năm
+                  1 Year
                 </button>
               </div>
             </div>
 
             <div class="form-section">
-              <h3 class="section-title">Phân loại</h3>
+              <h3 class="section-title">Category</h3>
               <div class="category-grid">
                 <div
                   v-for="cat in categories"
@@ -319,10 +284,10 @@ const calculatedHistory = computed(() => {
 
             <div class="form-actions">
               <button type="button" class="btn-text" @click="$emit('cancel')">
-                Hủy bỏ
+                Cancel
               </button>
               <button type="submit" class="pill-btn primary">
-                Lưu thay đổi
+                Save Changes
               </button>
             </div>
           </form>
@@ -333,7 +298,7 @@ const calculatedHistory = computed(() => {
           <!-- Status Card -->
           <div class="card info-card">
             <div class="info-row status-edit">
-              <span>Trạng thái</span>
+              <span>Status</span>
               <select
                 v-model="formData.status"
                 class="status-select"
@@ -347,14 +312,14 @@ const calculatedHistory = computed(() => {
               <label class="toggle-row">
                 <input type="checkbox" v-model="formData.autoRenew" />
                 <span class="checkbox-custom"></span>
-                <span>Tự động gia hạn</span>
+                <span>Auto-renew</span>
               </label>
             </div>
             <div class="info-row" style="margin-top: 12px">
               <label class="toggle-row">
                 <input type="checkbox" v-model="formData.familyPlan" />
                 <span class="checkbox-custom"></span>
-                <span>Gói gia đình</span>
+                <span>Family Plan</span>
               </label>
             </div>
             <div
@@ -369,7 +334,7 @@ const calculatedHistory = computed(() => {
                   display: block;
                   margin-bottom: 8px;
                 "
-                >Số thành viên</label
+                >Members</label
               >
               <div class="members-input">
                 <button
@@ -390,20 +355,20 @@ const calculatedHistory = computed(() => {
 
           <!-- Note Card -->
           <div class="card note-card">
-            <h3>Ghi chú</h3>
+            <h3>Notes</h3>
             <textarea
               v-model="formData.note"
               rows="4"
-              placeholder="Viết ghi chú..."
+              placeholder="Write a note..."
             ></textarea>
           </div>
 
           <!-- Mock History -->
           <div class="card history-card" v-if="isEditing">
             <div class="history-header">
-              <h3>Lịch sử thanh toán</h3>
+              <h3>Payment History</h3>
               <span class="history-count"
-                >{{ calculatedHistory.length }} kỳ</span
+                >{{ calculatedHistory.length }} cycles</span
               >
             </div>
             <div class="history-list">
@@ -422,7 +387,7 @@ const calculatedHistory = computed(() => {
                 </div>
               </div>
               <div v-if="calculatedHistory.length === 0" class="empty-history">
-                Chưa có lịch sử thanh toán
+                No payment history yet
               </div>
             </div>
           </div>
@@ -874,6 +839,28 @@ const calculatedHistory = computed(() => {
 [data-theme="light"] .history-item {
   border-color: #e5e7eb;
 }
+
+.icon-btn.danger {
+  color: #ff4757;
+  border-color: rgba(255, 71, 87, 0.3);
+  background: rgba(255, 71, 87, 0.1);
+}
+
+.icon-btn.danger:hover {
+  background: rgba(255, 71, 87, 0.2);
+  border-color: #ff4757;
+}
+
+[data-theme="light"] .modal-header .icon-btn.danger {
+  background: #fee2e2;
+  color: #ef4444;
+  border-color: #fca5a5;
+}
+[data-theme="light"] .modal-header .icon-btn.danger:hover {
+  background: #fecaca;
+  color: #dc2626;
+}
+
 @media (max-width: 600px) {
   .modal-content {
     padding: 20px;

@@ -55,6 +55,7 @@ const categories = [
   { id: "dev", label: "Development", icon: "dev" },
   { id: "design", label: "Design", icon: "design" },
   { id: "entertainment", label: "Entertainment", icon: "entertainment" },
+  { id: "credit", label: "Credit", icon: "card" },
   { id: "cloud", label: "Cloud", icon: "cloud" },
   { id: "security", label: "Security", icon: "security" },
   { id: "utilities", label: "Electricity", icon: "bolt" },
@@ -119,7 +120,7 @@ const loadSubscriptions = () => {
       icon: "cloud",
       category: "cloud",
       accent: ["#4ac4ff", "#2d72ff"],
-      cycle: "Gói tháng",
+      cycle: "Monthly",
       note: "",
       autoRenew: true,
       familyPlan: false,
@@ -136,7 +137,7 @@ const loadSubscriptions = () => {
       icon: "server",
       category: "dev",
       accent: ["#50e3c2", "#2288ff"],
-      cycle: "Gói tháng",
+      cycle: "Monthly",
       note: "",
       autoRenew: true,
       familyPlan: false,
@@ -184,9 +185,9 @@ const totalSpending = computed(() => {
       amount = sub.price * 25400; // Approximate rate
     }
     // Very simple cycle calculation, assumes monthly for dashboard
-    if (sub.cycle === "Gói Quý") amount = amount / 3;
-    if (sub.cycle === "Gói 6 tháng") amount = amount / 6;
-    if (sub.cycle === "Gói Năm") amount = amount / 12;
+    if (sub.cycle === "Quarterly") amount = amount / 3;
+    if (sub.cycle === "Semi-Annually") amount = amount / 6;
+    if (sub.cycle === "Annually") amount = amount / 12;
     total += amount;
   });
   return new Intl.NumberFormat("vi-VN", {
@@ -236,11 +237,11 @@ function getNextBillingDate(sub) {
 
   // Advance next until it's strictly greater than today
   while (next <= today) {
-    if (sub.cycle === "Gói tháng") {
+    if (sub.cycle === "Monthly") {
       next.setMonth(next.getMonth() + 1);
-    } else if (sub.cycle === "Gói Quý") {
+    } else if (sub.cycle === "Quarterly") {
       next.setMonth(next.getMonth() + 3);
-    } else if (sub.cycle === "Gói 6 tháng") {
+    } else if (sub.cycle === "Semi-Annually") {
       next.setMonth(next.getMonth() + 6);
     } else {
       next.setFullYear(next.getFullYear() + 1);

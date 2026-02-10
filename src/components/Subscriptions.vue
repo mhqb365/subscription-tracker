@@ -641,9 +641,24 @@ function formatDate(dateStr) {
   color: white;
 }
 
+.icon-btn-sm.danger {
+  color: #ff4757;
+  background: rgba(255, 71, 87, 0.1);
+}
+
 .icon-btn-sm.danger:hover {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
+  background: rgba(255, 71, 87, 0.2);
+  color: #ff4757;
+}
+
+/* Light Theme Danger Button Override */
+[data-theme="light"] .icon-btn-sm.danger {
+  background: #fee2e2 !important;
+  color: #ef4444 !important;
+}
+[data-theme="light"] .icon-btn-sm.danger:hover {
+  background: #fecaca !important;
+  color: #dc2626 !important;
 }
 
 .icon-btn-sm svg {

@@ -341,8 +341,24 @@ function getDaysLeft(sub) {
   color: #fff;
 }
 
+.icon-btn-xs.danger {
+  color: #ff4757;
+  background: rgba(255, 71, 87, 0.1);
+}
+
 .icon-btn-xs.danger:hover {
-  color: #ff6b6b;
+  background: rgba(255, 71, 87, 0.2);
+  color: #ff4757;
+}
+
+/* Light theme danger btn override */
+[data-theme="light"] .icon-btn-xs.danger {
+  background: #fee2e2;
+  color: #ef4444;
+}
+[data-theme="light"] .icon-btn-xs.danger:hover {
+  background: #fecaca;
+  color: #dc2626;
 }
 
 .icon-btn-xs svg {
