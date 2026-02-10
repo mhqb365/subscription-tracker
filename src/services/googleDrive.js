@@ -232,6 +232,63 @@ async function findConfigFile() {
   return null;
 }
 
+export async function autoSync(onRestore) {
+  if (!isAuthenticated.value || !gapiInited) return false;
+
+  try {
+    isSyncing.value = true;
+
+    // Find file and get modifiedTime
+    const response = await gapi.client.drive.files.list({
+      spaces: "appDataFolder",
+      q: `name = '${CONFIG_FILE_NAME}' and trashed = false`,
+      fields: "files(id, modifiedTime)",
+      pageSize: 1,
+    });
+
+    const files = response.result.files;
+    if (!files || files.length === 0) return false;
+
+    const driveFile = files[0];
+    const driveTime = new Date(driveFile.modifiedTime).getTime();
+
+    // Local time (allow 10s buffer for clock skew/network delay)
+    const localTime = lastSyncTime.value
+      ? new Date(lastSyncTime.value).getTime()
+      : 0;
+
+    console.log(
+      "AutoSync Check - Drive:",
+      new Date(driveTime),
+      "Local:",
+      new Date(localTime),
+    );
+
+    if (driveTime > localTime + 10000) {
+      console.log("Drive content is newer. Downloading...");
+
+      // We can reuse loadFromDrive but we need the file ID we just found
+      // Actually loadFromDrive finds file again, which is fine for safety.
+      // But we can optimize by fetching content directly with ID.
+      const res = await gapi.client.drive.files.get({
+        fileId: driveFile.id,
+        alt: "media",
+      });
+
+      if (res.result) {
+        onRestore(res.result);
+        updateLastSyncTime(); // Update local time to now so we don't loop
+        return true;
+      }
+    }
+  } catch (e) {
+    console.error("Auto sync failed:", e);
+  } finally {
+    isSyncing.value = false;
+  }
+  return false;
+}
+
 function updateLastSyncTime() {
   const now = new Date();
   lastSyncTime.value = now;

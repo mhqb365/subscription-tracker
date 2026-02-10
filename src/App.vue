@@ -5,7 +5,7 @@ import Dashboard from "./components/Dashboard.vue";
 import Subscriptions from "./components/Subscriptions.vue";
 import Statistics from "./components/Statistics.vue";
 import Settings from "./components/Settings.vue";
-import { initGoogleServices } from "./services/googleDrive";
+import { initGoogleServices, autoSync } from "./services/googleDrive";
 import { iconPaths } from "./icons";
 
 const navItems = [
@@ -146,8 +146,19 @@ const loadSubscriptions = () => {
 
 const subscriptions = ref(loadSubscriptions());
 
-onMounted(() => {
-  initGoogleServices();
+onMounted(async () => {
+  await initGoogleServices();
+
+  if (isDark.value) {
+    // Ensure theme is consistent
+    document.documentElement.setAttribute("data-theme", "dark");
+  }
+
+  // Attempt auto sync
+  await autoSync((newData) => {
+    subscriptions.value = newData;
+    // alert("🔄 New data found on Drive and synced!");
+  });
 });
 
 // Watch subscriptions and save to localStorage whenever they change
