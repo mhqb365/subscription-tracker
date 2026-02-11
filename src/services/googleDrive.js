@@ -28,16 +28,17 @@ export async function initGoogleServices() {
     return;
   }
 
-  return new Promise((resolve) => {
+  await new Promise((resolve) => {
     const checkLibs = setInterval(() => {
       if (typeof gapi !== "undefined" && typeof google !== "undefined") {
         clearInterval(checkLibs);
-        initializeGapiClient();
-        initializeGisClient();
         resolve();
       }
     }, 100);
   });
+
+  await initializeGapiClient();
+  initializeGisClient();
 }
 
 async function initializeGapiClient() {
@@ -83,13 +84,27 @@ function initializeGisClient() {
 function checkAuth() {
   const token = localStorage.getItem("google_access_token");
   const expiry = localStorage.getItem("google_token_expiry");
-  const wasLoggedIn = localStorage.getItem("google_logged_in") === "true";
 
-  if (token && expiry && Date.now() < parseInt(expiry)) {
-    gapi.client.setToken({ access_token: token });
-    isAuthenticated.value = true;
-  } else if (!wasLoggedIn) {
+  // Check if we have a token and if it's still theoretically valid
+  const now = Date.now();
+  const expiryTime = parseInt(expiry) || 0;
+
+  if (token && expiryTime > now) {
+    try {
+      gapi.client.setToken({ access_token: token });
+      isAuthenticated.value = true;
+      console.log("G Drive: Session restored successfully");
+    } catch (e) {
+      console.warn("G Drive: Failed to set token", e);
+      isAuthenticated.value = false;
+    }
+  } else {
+    // If expired or missing, just set authenticated to false, DON'T delete.
+    // This allows the UI to show 'Connect' without breaking things.
     isAuthenticated.value = false;
+    if (token) {
+      console.log("G Drive: Token exists but is likely expired");
+    }
   }
   isInitialized.value = true;
 }
