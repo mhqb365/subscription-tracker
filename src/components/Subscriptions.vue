@@ -19,6 +19,7 @@ const emit = defineEmits([
   "delete",
   "import-json",
   "export-json",
+  "toggle-active",
 ]);
 
 const searchQuery = ref("");
@@ -118,6 +119,7 @@ function formatPriceDisplay(sub) {
 }
 
 function getNextBillingDate(sub) {
+  if (sub.isActive === false && sub.stopDate) return new Date(sub.stopDate);
   if (sub.status !== "ACTIVE" || !sub.autoRenew) return new Date(sub.expiry);
   const today = new Date();
   const start = new Date(sub.startDate);
@@ -126,11 +128,11 @@ function getNextBillingDate(sub) {
   if (next > today) return next;
 
   while (next <= today) {
-    if (sub.cycle === "Gói tháng") {
+    if (sub.cycle === "Gói tháng" || sub.cycle === "Monthly") {
       next.setMonth(next.getMonth() + 1);
-    } else if (sub.cycle === "Gói Quý") {
+    } else if (sub.cycle === "Gói Quý" || sub.cycle === "Quarterly") {
       next.setMonth(next.getMonth() + 3);
-    } else if (sub.cycle === "Gói 6 tháng") {
+    } else if (sub.cycle === "Gói 6 tháng" || sub.cycle === "Semi-Annually") {
       next.setMonth(next.getMonth() + 6);
     } else {
       next.setFullYear(next.getFullYear() + 1);
@@ -155,6 +157,17 @@ function formatDate(dateStr) {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function toggleSubActive(sub) {
+  const nextActive = !sub.isActive;
+  const updatedSub = {
+    ...sub,
+    isActive: nextActive,
+    autoRenew: nextActive, // If Active -> Always true, If Inactive -> Always false
+    stopDate: nextActive ? null : new Date().toISOString().split("T")[0],
+  };
+  emit("toggle-active", updatedSub);
 }
 </script>
 
@@ -286,6 +299,17 @@ function formatDate(dateStr) {
               </div>
             </div>
           </div>
+          <div class="card-status-toggle">
+            <button
+              class="status-pill-toggle"
+              :class="{ 'is-active': sub.isActive }"
+              @click.stop="toggleSubActive(sub)"
+              :title="sub.isActive ? 'Active' : 'Inactive'"
+            >
+              <span class="dot"></span>
+              {{ sub.isActive ? "Active" : "Inactive" }}
+            </button>
+          </div>
           <div class="card-actions">
             <button class="icon-btn-sm" @click="$emit('edit', sub)">
               <svg viewBox="0 0 24 24"><path :d="iconPaths.edit" /></svg>
@@ -298,8 +322,27 @@ function formatDate(dateStr) {
 
         <div class="card-mid">
           <div class="big-price">{{ formatPriceDisplay(sub) }}</div>
-          <div class="days-badge" :class="{ warning: getDaysLeft(sub) <= 7 }">
-            {{ getDaysLeft(sub) }}D LEFT
+          <div
+            class="days-badge"
+            :class="{
+              warning: sub.isActive && getDaysLeft(sub) <= 7,
+              stopped: !sub.isActive,
+            }"
+          >
+            <template v-if="sub.isActive">
+              {{
+                getDaysLeft(sub) >= 0
+                  ? `${getDaysLeft(sub)}D LEFT`
+                  : `${Math.abs(getDaysLeft(sub))}D OVERDUE`
+              }}
+            </template>
+            <template v-else>
+              {{
+                getDaysLeft(sub) < 0
+                  ? `${Math.abs(getDaysLeft(sub))}D AGO`
+                  : "STOPPED"
+              }}
+            </template>
           </div>
         </div>
 
@@ -311,20 +354,35 @@ function formatDate(dateStr) {
           <div class="arrow">→</div>
           <div class="date-col">
             <span class="label">{{
-              sub.autoRenew ? "NEXT BILL" : "EXPIRES"
+              !sub.isActive
+                ? "STOPPED"
+                : sub.autoRenew
+                  ? "NEXT BILL"
+                  : "EXPIRES"
             }}</span>
             <span class="val">{{ formatDate(getNextBillingDate(sub)) }}</span>
           </div>
         </div>
 
         <div class="card-footer">
-          <div class="auto-renew" :class="{ active: sub.autoRenew }">
-            <svg viewBox="0 0 24 24" v-if="sub.autoRenew">
-              <path :d="iconPaths.clock" />
-            </svg>
-            <span>{{
-              sub.autoRenew ? "Auto-renewal enabled" : "Manual renewal"
-            }}</span>
+          <div
+            class="auto-renew"
+            :class="{ active: sub.autoRenew && sub.isActive }"
+          >
+            <template v-if="sub.isActive">
+              <svg viewBox="0 0 24 24" v-if="sub.autoRenew">
+                <path :d="iconPaths.clock" />
+              </svg>
+              <span>{{
+                sub.autoRenew ? "Auto-renewal enabled" : "Manual renewal"
+              }}</span>
+            </template>
+            <template v-else>
+              <svg viewBox="0 0 24 24" style="color: var(--muted)">
+                <path :d="iconPaths.close" />
+              </svg>
+              <span>Subscription stopped</span>
+            </template>
           </div>
         </div>
       </article>
@@ -579,6 +637,7 @@ function formatDate(dateStr) {
 .card-brand {
   display: flex;
   gap: 16px;
+  flex: 1;
 }
 
 .brand-icon {
@@ -588,6 +647,57 @@ function formatDate(dateStr) {
   display: grid;
   place-items: center;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  position: relative;
+}
+
+.card-status-toggle {
+  margin-right: 12px;
+}
+
+.status-pill-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 100px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.status-pill-toggle .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s;
+}
+
+.status-pill-toggle.is-active {
+  background: rgba(58, 222, 139, 0.1);
+  border-color: rgba(58, 222, 139, 0.2);
+  color: #3ade8b;
+}
+
+.status-pill-toggle.is-active .dot {
+  background: #3ade8b;
+  box-shadow: 0 0 8px rgba(58, 222, 139, 0.5);
+}
+
+.status-pill-toggle:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: translateY(-1px);
+}
+
+.status-pill-toggle.is-active:hover {
+  background: rgba(58, 222, 139, 0.2);
 }
 
 .brand-icon svg {
@@ -696,6 +806,11 @@ function formatDate(dateStr) {
 .days-badge.warning {
   background: rgba(255, 111, 60, 0.15);
   color: #ff6f3c;
+}
+
+.days-badge.stopped {
+  background: rgba(143, 161, 195, 0.1);
+  color: var(--muted);
 }
 
 .card-dates {

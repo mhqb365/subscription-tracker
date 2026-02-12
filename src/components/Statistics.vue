@@ -25,12 +25,22 @@ function getPaymentEvents(sub, rangeStart, rangeEnd) {
   pEnd.setHours(23, 59, 59, 999);
 
   // Xác định điểm dừng của gói:
-  // Nếu là Active + AutoRenew -> Chạy đến vô hạn (hoặc pEnd)
-  // Nếu là Inactive hoặc không AutoRenew -> Chỉ chạy đến ngày Expiry
-  let stopDate = new Date(sub.expiry);
+  // 1. Nếu có ngày ngưng duy trì (stopDate) -> Phải dừng tại đó
+  // 2. Nếu là Inactive hoặc không AutoRenew -> Dừng tại ngày Expiry
+  // 3. Nếu là Active + AutoRenew -> Chạy đến vô hạn (hoặc pEnd)
+  let stopDate;
+  if (sub.stopDate) {
+    stopDate = new Date(sub.stopDate);
+  } else {
+    stopDate = new Date(sub.expiry);
+  }
   stopDate.setHours(23, 59, 59, 999);
 
-  const isInfinite = sub.status === "ACTIVE" && sub.autoRenew;
+  const isInfinite =
+    sub.isActive !== false &&
+    sub.status === "ACTIVE" &&
+    sub.autoRenew &&
+    !sub.stopDate;
 
   while (currentBillDate <= pEnd) {
     // Nếu không phải vô hạn mà vượt quá ngày hết hạn -> Dừng
@@ -128,7 +138,7 @@ const spendingByCategory = computed(() => {
   const categoryMap = {};
 
   props.subscriptions.forEach((sub) => {
-    if (sub.status !== "ACTIVE") return;
+    if (sub.isActive === false) return;
 
     if (!categoryMap[sub.category]) {
       categoryMap[sub.category] = {
@@ -163,7 +173,7 @@ const spendingByCategory = computed(() => {
 // Top expensive subscriptions
 const topExpensive = computed(() => {
   return [...props.subscriptions]
-    .filter((s) => s.status === "ACTIVE")
+    .filter((s) => s.isActive !== false)
     .map((sub) => {
       let monthlyAmount = Number(sub.price) || 0;
       if (sub.currency === "USD") {

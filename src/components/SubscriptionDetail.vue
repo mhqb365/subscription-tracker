@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, onMounted, computed } from "vue";
+import { reactive, onMounted, computed, watch } from "vue";
 import { iconPaths } from "../icons";
 
 const props = defineProps({
@@ -32,15 +32,18 @@ const formData = reactive({
   expiry: "",
   members: 0,
   status: "ACTIVE",
+  isActive: true,
   icon: "layers",
   category: "other",
   cycle: "Monthly",
   note: "",
   autoRenew: true,
   familyPlan: false,
+  stopDate: null,
   accent: null,
 });
 
+const initialStopDate = reactive({ value: null });
 const isEditing = computed(() => !!props.subscription || !!props.id);
 
 onMounted(() => {
@@ -59,6 +62,9 @@ onMounted(() => {
       formData.expiry = formData.expiry.split("T")[0];
     if (formData.startDate?.includes("T"))
       formData.startDate = formData.startDate.split("T")[0];
+    if (formData.stopDate?.includes("T"))
+      formData.stopDate = formData.stopDate.split("T")[0];
+    initialStopDate.value = formData.stopDate;
   } else {
     // defaults
     const today = new Date().toISOString().split("T")[0];
@@ -98,6 +104,24 @@ function getRandomGradient() {
   return colors[Math.floor(Math.random() * colors.length)];
 }
 
+watch(
+  () => formData.isActive,
+  (newVal) => {
+    if (newVal) {
+      formData.stopDate = null;
+      formData.status = "ACTIVE";
+      formData.autoRenew = true;
+    } else {
+      formData.autoRenew = false;
+      formData.status = "INACTIVE";
+      // Restore previous date if it existed, otherwise leave blank
+      if (initialStopDate.value) {
+        formData.stopDate = initialStopDate.value;
+      }
+    }
+  },
+);
+
 function save() {
   emit("save", { ...formData });
 }
@@ -119,9 +143,15 @@ const calculatedHistory = computed(() => {
 
   // Determine the stop date for history
   // If autoRenew is off or sub is inactive, stop at expiry
-  // Otherwise, calculate up to today
+  // If there's a specific stopDate, that takes precedence
   let limitDate = now;
-  if (!formData.autoRenew || formData.status !== "ACTIVE") {
+  if (formData.stopDate) {
+    limitDate = new Date(formData.stopDate);
+  } else if (
+    !formData.autoRenew ||
+    formData.status !== "ACTIVE" ||
+    !formData.isActive
+  ) {
     limitDate = expiry < now ? expiry : now;
   }
 
@@ -313,7 +343,7 @@ const calculatedHistory = computed(() => {
         <div class="sidebar-details">
           <!-- Status Card -->
           <div class="card info-card">
-            <div class="info-row status-edit">
+            <div class="info-row status-edit" v-if="formData.isActive">
               <span>Status</span>
               <select
                 v-model="formData.status"
@@ -325,48 +355,85 @@ const calculatedHistory = computed(() => {
               </select>
             </div>
             <div class="info-row" style="margin-top: 12px">
-              <label class="toggle-row">
-                <input type="checkbox" v-model="formData.autoRenew" />
-                <span class="checkbox-custom"></span>
-                <span>Auto-renew</span>
+              <label class="toggle-row master-switch">
+                <input type="checkbox" v-model="formData.isActive" />
+                <span class="switch-slider"></span>
+                <div class="switch-labels">
+                  <span class="active-label">Active</span>
+                  <span class="inactive-label">Inactive</span>
+                </div>
               </label>
             </div>
-            <div class="info-row" style="margin-top: 12px">
-              <label class="toggle-row">
-                <input type="checkbox" v-model="formData.familyPlan" />
-                <span class="checkbox-custom"></span>
-                <span>Family Plan</span>
-              </label>
-            </div>
-            <div
-              class="info-group"
-              v-if="formData.familyPlan"
-              style="margin-top: 16px"
-            >
-              <label
-                style="
-                  font-size: 11px;
-                  color: var(--muted);
-                  display: block;
-                  margin-bottom: 8px;
-                "
-                >Members</label
-              >
-              <div class="members-input">
-                <button
-                  type="button"
-                  @click="formData.members = Math.max(0, formData.members - 1)"
-                >
-                  -
-                </button>
-                <input
-                  type="number"
-                  v-model.number="formData.members"
-                  min="0"
-                />
-                <button type="button" @click="formData.members++">+</button>
+
+            <!-- Stop Date Picker -->
+            <transition name="slide-fade">
+              <div class="stop-date-section" v-if="!formData.isActive">
+                <label>End date</label>
+                <div class="input-with-icon">
+                  <input
+                    v-model="formData.stopDate"
+                    type="date"
+                    class="dark-date-input"
+                  />
+                  <svg viewBox="0 0 24 24">
+                    <path :d="iconPaths.calendar" />
+                  </svg>
+                </div>
+                <p class="helper-text">
+                  Subscription history will end on this date.
+                </p>
               </div>
-            </div>
+            </transition>
+            <transition name="slide-fade">
+              <div v-if="formData.isActive">
+                <div class="info-row" style="margin-top: 12px">
+                  <label class="toggle-row">
+                    <input type="checkbox" v-model="formData.autoRenew" />
+                    <span class="checkbox-custom"></span>
+                    <span>Auto-renew</span>
+                  </label>
+                </div>
+                <div class="info-row" style="margin-top: 12px">
+                  <label class="toggle-row">
+                    <input type="checkbox" v-model="formData.familyPlan" />
+                    <span class="checkbox-custom"></span>
+                    <span>Family Plan</span>
+                  </label>
+                </div>
+
+                <div
+                  class="info-group"
+                  v-if="formData.familyPlan"
+                  style="margin-top: 16px"
+                >
+                  <label
+                    style="
+                      font-size: 11px;
+                      color: var(--muted);
+                      display: block;
+                      margin-bottom: 8px;
+                    "
+                    >Members</label
+                  >
+                  <div class="members-input">
+                    <button
+                      type="button"
+                      @click="
+                        formData.members = Math.max(0, formData.members - 1)
+                      "
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      v-model.number="formData.members"
+                      min="0"
+                    />
+                    <button type="button" @click="formData.members++">+</button>
+                  </div>
+                </div>
+              </div>
+            </transition>
           </div>
 
           <!-- Note Card -->
@@ -624,6 +691,159 @@ const calculatedHistory = computed(() => {
 [data-theme="light"] .status-select.inactive {
   background: #fee2e2;
   color: #991b1b;
+}
+
+/* Master Switch Styles */
+.master-switch {
+  display: flex;
+  align-items: center;
+  position: relative;
+  width: 100%;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  cursor: pointer;
+  overflow: hidden;
+  padding: 4px;
+}
+
+.master-switch input {
+  display: none;
+}
+
+.switch-slider {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  background: var(--primary-gradient);
+  border-radius: 8px;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.master-switch input:not(:checked) ~ .switch-slider {
+  transform: translateX(100%);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+.switch-labels {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+.switch-labels span {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  transition: color 0.3s;
+}
+
+.active-label {
+  color: #fff;
+}
+
+.inactive-label {
+  color: var(--muted);
+}
+
+.master-switch input:not(:checked) ~ .switch-labels .active-label {
+  color: var(--muted);
+}
+
+.master-switch input:not(:checked) ~ .switch-labels .inactive-label {
+  color: #fff;
+}
+
+[data-theme="light"] .master-switch {
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+}
+[data-theme="light"] .master-switch input:not(:checked) ~ .switch-slider {
+  background: #d1d5db;
+}
+
+.stop-date-section {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.stop-date-section label {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stop-date-section .helper-text {
+  font-size: 10px;
+  color: var(--muted);
+  margin: 0;
+  font-style: italic;
+}
+
+.dark-date-input {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 10px 12px 10px 40px;
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+  appearance: none;
+}
+
+/* Hide native calendar icon to avoid 'blob' mess */
+.dark-date-input::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  cursor: pointer;
+}
+
+[data-theme="light"] .stop-date-section {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .dark-date-input {
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+  color: #111827;
+}
+
+/* Slide Fade Transition */
+.slide-fade-enter-active {
+  transition: all 0.3s ease-out;
+}
+.slide-fade-leave-active {
+  transition: all 0.2s cubic-bezier(1, 0.5, 0.8, 1);
+}
+.slide-fade-enter-from,
+.slide-fade-leave-to {
+  transform: translateY(-10px);
+  opacity: 0;
 }
 
 .note-card textarea {

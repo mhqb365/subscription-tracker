@@ -170,6 +170,7 @@ const loadSubscriptions = () => {
       expiry: "2026-02-24",
       members: 2,
       status: "ACTIVE",
+      isActive: true, // Master switch
       icon: "cloud",
       category: "cloud",
       accent: ["#4ac4ff", "#2d72ff"],
@@ -177,6 +178,7 @@ const loadSubscriptions = () => {
       note: "",
       autoRenew: true,
       familyPlan: false,
+      stopDate: null,
     },
     {
       id: 2,
@@ -187,6 +189,7 @@ const loadSubscriptions = () => {
       expiry: "2027-02-01",
       members: 0,
       status: "ACTIVE",
+      isActive: true, // Master switch
       icon: "server",
       category: "dev",
       accent: ["#50e3c2", "#2288ff"],
@@ -194,6 +197,7 @@ const loadSubscriptions = () => {
       note: "",
       autoRenew: true,
       familyPlan: false,
+      stopDate: null,
     },
   ];
 };
@@ -238,7 +242,7 @@ watch(
 const totalSpending = computed(() => {
   let total = 0;
   subscriptions.value.forEach((sub) => {
-    if (sub.status !== "ACTIVE") return;
+    if (sub.status !== "ACTIVE" || sub.isActive === false) return;
     let amount = Number(sub.price) || 0;
 
     // Currency conversion
@@ -321,7 +325,7 @@ function getNextBillingDate(sub) {
 }
 
 function isExpiringSoon(sub) {
-  if (sub.status !== "ACTIVE") return false;
+  if (sub.status !== "ACTIVE" || sub.isActive === false) return false;
   const today = new Date();
   const nextBilling = getNextBillingDate(sub);
   const diffTime = nextBilling - today;
@@ -354,6 +358,13 @@ function handleSave(subData) {
     subscriptions.value.push(newSub);
   }
   router.push({ name: lastRoute.value });
+}
+
+function handleQuickUpdate(subData) {
+  const index = subscriptions.value.findIndex((s) => s.id === subData.id);
+  if (index !== -1) {
+    subscriptions.value[index] = { ...subscriptions.value[index], ...subData };
+  }
 }
 
 function handleDelete(id) {
@@ -443,6 +454,7 @@ function getRandomGradient() {
             @view-all="router.push({ name: 'subscriptions' })"
             @add="openDetail"
             @edit="openDetail"
+            @toggle-active="handleQuickUpdate"
             @delete="handleDelete"
             @import="handleImport"
             @toggle-theme="toggleTheme"

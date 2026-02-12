@@ -18,8 +18,11 @@ const emit = defineEmits(["view-all", "edit", "delete", "add"]);
 // Show top 5 subscriptions expiring soonest
 const expiringSubs = computed(() => {
   return [...props.subscriptions]
-    .filter((s) => s.status === "ACTIVE")
-    .sort((a, b) => getDaysLeft(a) - getDaysLeft(b))
+    .sort((a, b) => {
+      // Prioritize active ones and those expiring soon
+      if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+      return getDaysLeft(a) - getDaysLeft(b);
+    })
     .slice(0, 5);
 });
 
@@ -108,7 +111,9 @@ function getDaysLeft(sub) {
           :key="sub.id"
           class="mini-card"
           :class="{
-            'expiring-soon': getDaysLeft(sub) <= 7 && sub.status === 'ACTIVE',
+            'expiring-soon':
+              getDaysLeft(sub) <= 7 && sub.status === 'ACTIVE' && sub.isActive,
+            'is-inactive': !sub.isActive,
           }"
         >
           <div class="mini-left">
@@ -129,6 +134,7 @@ function getDaysLeft(sub) {
                 >
                   Expiring Soon
                 </span>
+                <span v-if="!sub.isActive" class="stopped-label"> Ngưng </span>
               </div>
               <div class="mini-cat">{{ sub.category }}</div>
             </div>
@@ -279,6 +285,21 @@ function getDaysLeft(sub) {
   border-radius: 4px;
   font-weight: 700;
   text-transform: uppercase;
+}
+
+.stopped-label {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--muted);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.mini-card.is-inactive {
+  opacity: 0.7;
+  background: rgba(15, 24, 44, 0.6);
 }
 
 .mini-card.expiring-soon {
